@@ -1,0 +1,67 @@
+#!/usr/bin/env python
+# vim: et sw=4 ts=4 sts=4 tw=0
+import os.path as p
+from os import mkdir, stat, unlink
+import time
+import glob
+import markdown as md
+import sys
+
+tpl = """
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <link href="../gfm.css" media="all" rel="stylesheet" />
+  </head>
+  <body>
+    <div class="markdown-body">
+%s
+    </div>
+  </body>
+</html>
+"""
+md_dir = 'src'
+dest_dir = 'html'
+try:
+    mkdir(dest_dir)
+except Exception:
+    pass
+
+
+def convert(f):
+    dest_name = p.splitext(p.basename(f))[0] + '.html'
+    with open(f, 'rb') as f_in:
+        str_in = f_in.read().decode('utf8')
+        str_out = tpl % md.markdown(str_in, extensions=['partial_gfm'])
+        print('generating %s' % dest_name)
+        with open(p.join(dest_dir, dest_name), 'wb') as f_out:
+            f_out.write(str_out.encode('utf8'))
+
+
+def deletehtml(f):
+    try:
+        dest_name = p.splitext(p.basename(f))[0] + '.html'
+        print('deleting %s' % dest_name)
+        f2 = p.join(dest_dir, dest_name)
+        unlink(f2)
+    except Exception:
+        pass
+
+
+before = dict()
+try:
+    while True:
+        after = dict([(f, stat(f)) for f in glob.glob(p.join(md_dir, '*.md'))])
+        for f in [f for f in before if f not in after]:
+            deletehtml(f)
+        for f in [f for f in after if f not in before]:
+            convert(f)
+        for f in [f for f in before if f in after]:
+            if before[f].st_mtime < after[f].st_mtime:
+                convert(f)
+        before = after
+        time.sleep(1)
+except KeyboardInterrupt:
+    print("Aborting")
+    sys.exit(1)
